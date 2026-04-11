@@ -17,9 +17,11 @@ uv.lock
 
 # Data (generated)
 .vault_internal/
-data/chroma/
+data/
+data/chroma_db/
 data/vault_internal/
 *.sqlite
+*.sqlite3
 *.db
 data/may.log
 
