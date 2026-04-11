@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Путь к venv (настрой под себя, если он в другом месте)
 PORT=8001
 PROJECT_ROOT="$SCRIPT_DIR"
-VENV_PATH=~/Projects/NeuralVault/venv/bin/activate
+VENV_PATH=~/Projects/mcp-may/venv/bin/activate
 
 # 📂 Пути к базам и логам (для функции очистки)
 VAULT_DIR="$SCRIPT_DIR/.vault_internal"
