@@ -30,13 +30,6 @@ async def main():
                 tools_resp = await session.list_tools()
                 available_tools = tools_resp.tools
                 
-                # # 📝 ВЫВОД ИНСТРУМЕНТОВ В КОНСОЛЬ
-                # print(f"⟦⚓⟧ ДОСТУПНО ИНСТРУМЕНТОВ: {len(available_tools)}")
-                # for i, tool in enumerate(available_tools, 1):
-                #     # Выводим имя и описание (первую строку)
-                #     desc = tool.description.split('\n')[0] if tool.description else "Нет описания"
-                #     print(f"  {i}. 🛠 {tool.name.ljust(20)} | {desc}")
-                # print("-" * 50 + "\n")
 
                 # --- 0. 📡 ПИНГ (Проверка связи после листинга) ---
                 await safe_call(session, available_tools, "ping")

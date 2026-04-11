@@ -11,11 +11,12 @@ class Librarian:
     Отвечает за физический поиск, запись в базу по планам и инвентарь [CHUNKING].
     """
 
-    def __init__(self, collection, inventory, gateway, orchestrator):
+    def __init__(self, collection, inventory, gateway, director, orchestrator):
         self.collection = collection
         self.inv = inventory
         self.gateway = gateway
-        self.orchestrator = orchestrator  # Наш Дирижер
+        self.director = director
+        self.orchestrator = orchestrator  
         self.logger = logging.getLogger("mcp_may.librarian")
 
     def save_atom_to_db(

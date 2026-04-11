@@ -54,14 +54,9 @@ inv = FileInventory(db_path=db_cfg.get('inventory_path', "./data/inventory.db"))
 # 5. 🏢 Расселение Специалистов (Инъекция зависимостей)
 from specialists.semantic import SemanticDirector
 from specialists.librarian import Librarian
-from specialists.cartographer import OllamaCartographer
-from specialists.architect import Architect
 
 director = SemanticDirector(gateway=gateway)
-lib = Librarian(collection, inv, gateway, orchestrator)
-
-arch = Architect(collection, gateway=gateway)
-carto = OllamaCartographer(gateway=gateway)
+lib = Librarian(collection, inv, gateway,director, orchestrator)
 
 # ОФФЛАЙН флаги (можно тоже в конфиг, но пока оставим тут)
 os.environ['TRANSFORMERS_OFFLINE'] = '1'
@@ -126,43 +121,4 @@ def register_tools(mcp):
         """#S_EN: [TOOL] Прием умного чанка от внешнего Специалиста."""
         return lib.ingest_chunk(content, metadata)
 
-    # [🗺️] EXPERT_CORE: КАРТОГРАФ
-
-    @mcp.tool()
-    async def draw_project_map(query: str = "") -> str:
-        """#S_EN: [TOOL] Мэй просит Картографа нарисовать схему связей проекта."""
-        return await carto.draw_project_map(lib, query)
-
-    @mcp.tool()
-    async def draw_file_map(filename: str) -> str:
-        """#S_EN: [TOOL] Мэй просит Картографа нарисовать схему файла."""
-        return await carto.draw_file_map(collection, filename)
-
-    @mcp.tool()
-    async def write_ai_code(filename: str, content: str) -> str:
-        """#S_EN: [TOOL] Запись отрефакторенного кода в зону AI_FORGE."""
-        return arch.write_code(filename, content)
-
-    @mcp.tool()
-    async def push_to_stack(task_name: str, task_body: str, priority: int = 1) -> str:
-        """#S_EN: [TOOL] Добавить задачу в очередь исполнения Босса."""
-        return arch.push_to_stack(task_name, task_body, priority)
-    
-    @mcp.tool()
-    async def download_model_tool(repo_id: str, filename: str):
-        # Просто просим шлюз достать файл
-        path = gateway.get_from_hf(repo_id, filename)
-        return f"⟦✓⟧ Модель загружена в {path}"
-
-
-    @mcp.tool()
-    async def start_planning_phase(directory: str) -> str:
-        """#S_EN: [TOOL] Фаза 2 конвейера: Логическая разметка файлов на чанки."""
-        return await Librarian.start_planning_phase(directory)
-
-    # @mcp.on_startup()
-    # async def on_startup():
-    #     """Запуск фоновых процессов сервера Мэй [CHUNKING]."""
-    #     # Запускаем бесконечный цикл Дирижера
-    #     asyncio.create_task(orchestrator.start_dispatcher())
-    #     print("🤖 Дирижер вычислений заступил на дежурство!")
+  
