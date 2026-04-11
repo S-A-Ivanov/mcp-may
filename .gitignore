@@ -1,1 +1,39 @@
-Nothing needs to be added to .gitignore since only a README.md file was modified and no build artifacts, dependencies, or temporary files were detected in the changes.
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual env
+.venv/
+venv/
+
+# uv
+uv.lock
+
+# Data (generated)
+.vault_internal/
+data/chroma/
+data/vault_internal/
+*.sqlite
+*.db
+data/may.log
+
+# Environment
+.env
+
+# IDE
+.vscode/*.json
+!.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
