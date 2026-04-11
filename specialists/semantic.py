@@ -86,3 +86,20 @@ class SemanticDirector:
         }}
         """
         return self.gateway.ask(specialist="semantic", prompt=prompt, schema="json")
+
+    def generate_global_manifest(self, all_passports_summary: str) -> str:
+        """[PHASE_1.5] Генерация текста манифеста через LLM."""
+        
+        prompt = f"""
+        #S_EN: [IDENTIFICATION]: You are 'ArchitecturalAnalyst'.
+        #S_EN: [TASK] Create GLOBAL ARCHITECTURAL MANIFEST.
+        #S_EN: [GOAL] Summarize the project's logic, tech stack, and key 'pits' (flaws).
+        #S_EN: [DATA_FROM_PASSPORTS]:
+        {all_passports_summary}
+        """
+        
+        self.logger.info("📡 Отправка суммаризированных паспортов в LLM для генерации Манифеста...")
+        res = self.gateway.ask(specialist="semantic", prompt=prompt)
+        return res.get("response", "Manifest generation failed.")
+
+

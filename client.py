@@ -46,15 +46,15 @@ async def main():
  
                 # 5. 🔍 СЕМАНТИЧЕСКИЙ ПОИСК
                 # Проверим, нашла ли Мэй информацию о самой себе
-                print(" 🔍 СЕМАНТИЧЕСКИЙ ПОИСК: 📡 Как работает Мэй?")
-                await safe_call(session, available_tools, "get_verified_brief", {
-                    "query": "Как работает Мэй?",
-                    "include_gossip": True
-                })
+                # print(" 🔍 СЕМАНТИЧЕСКИЙ ПОИСК: 📡 Как работает Мэй?")
+                # await safe_call(session, available_tools, "get_verified_brief", {
+                #     "query": "Как работает Мэй?",
+                #     "include_gossip": True
+                # })
                 
-                print("📡 Как Мэй обрабатывает ошибки при индексации файлов через Gemma?")
+                print("📡 как связаны между собой Librarian, Orchestrator и UniversalGateway при обработке файлов?")
                 await safe_call(session, available_tools, "get_verified_brief", {
-                    "query": "Как Мэй обрабатывает ошибки при индексации файлов через Gemma?",
+                    "query": "как связаны между собой Librarian, Orchestrator и UniversalGateway при обработке файлов?",
                     "include_gossip": True
                 })
 
