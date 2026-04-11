@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+
+# Определяем директорию скрипта
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Путь к venv (настрой под себя, если он в другом месте)
+PORT=8001
+PROJECT_ROOT="$SCRIPT_DIR"
+VENV_PATH=~/Projects/NeuralVault/venv/bin/activate
+
+# 📂 Пути к базам и логам (для функции очистки)
+VAULT_DIR="$SCRIPT_DIR/.vault_internal"
+DATA_DIR="$SCRIPT_DIR/data"
+
+# Скрипты с абсолютными путями
+SERVER_SCRIPT="$SCRIPT_DIR/server_may.py"
+CLIENT_SCRIPT="$SCRIPT_DIR/client.py"
+SCANNER_SCRIPT="$SCRIPT_DIR/scanner_client.py"
+BOSS_SCRIPT="$SCRIPT_DIR/client_boss.py"
+
+# --- ФУНКЦИИ УПРАВЛЕНИЯ ---
+
+# 🧹 Генеральная уборка Мэй
+clean_all() {
+    echo "🧹 Мэй проводит генеральную уборку..."
+    
+    # 1. Очистка баз данных в папке data
+    if [ -d "$DATA_DIR" ]; then
+        echo "🗑️ Удаляю базы данных из $DATA_DIR/..."
+        rm -rf "$DATA_DIR/chroma_db"
+        rm -f "$DATA_DIR/inventory.db"
+    fi
+    
+    # 2. Очистка внутренних журналов, паспортов и планов
+    if [ -d "$VAULT_DIR" ]; then
+        echo "🗑️ Стираю хроники, паспорта и планы в $VAULT_DIR/..."
+        rm -rf "$VAULT_DIR/journals"
+        rm -rf "$VAULT_DIR/passports"
+        rm -rf "$VAULT_DIR/plans"
+        rm -rf "$VAULT_DIR/raw_exchange"
+        rm -f "$VAULT_DIR/GLOBAL_MANIFEST.yaml"
+    fi
+    
+    echo "✨ Чистка завершена! Система готова к новому Конвейеру."
+}
+
+# 📡 Запуск изолированных инстанций Ollama
+start_ollama_instances() {
+    echo "🟢 Запускаю изолированные инстанции Ollama..."
+    
+    # Модели для GPU 0 (Порт 11435)
+    export OLLAMA_MODELS_0="$HOME/.ollama_gpu0"
+    mkdir -p "$OLLAMA_MODELS_0"
+    OLLAMA_HOST=127.0.0.1:11435 OLLAMA_MODELS="$OLLAMA_MODELS_0" CUDA_VISIBLE_DEVICES=0 ollama serve > "$SCRIPT_DIR/gpu0_ollama.log" 2>&1 &
+    GPU0_PID=$!
+    
+    # Модели для GPU 1 (Порт 11436)
+    export OLLAMA_MODELS_1="$HOME/.ollama_gpu1"
+    mkdir -p "$OLLAMA_MODELS_1"
+    OLLAMA_HOST=127.0.0.1:11436 OLLAMA_MODELS="$OLLAMA_MODELS_1" CUDA_VISIBLE_DEVICES=1 ollama serve > "$SCRIPT_DIR/gpu1_ollama.log" 2>&1 &
+    GPU1_PID=$!
+    
+    echo "⏳ Даю 5 секунд на прогрев моделей..."
+    sleep 5
+}
+
+# 🛑 Остановка фоновых инстанций Ollama
+stop_ollama_instances() {
+    echo "🛑 Останавливаю фоновые инстанции Ollama..."
+    if [ ! -z "$GPU0_PID" ]; then kill $GPU0_PID; fi
+    if [ ! -z "$GPU1_PID" ]; then kill $GPU1_PID; fi
+    echo "💀 Воркеры остановлены."
+}
+
+# --- ПРОВЕРКА ОКРУЖЕНИЯ ---
+
+if [ ! -f "$VENV_PATH" ]; then
+    echo "❌ Ошибка: venv не найден в $VENV_PATH"
+    exit 1
+fi
+
+source "$VENV_PATH"
+
+# --- ОБРАБОТКА КОМАНД ---
+
+case "$1" in
+    "clean")
+        clean_all
+        ;;
+    "start")
+        # [💀] Находим PID процесса на порту 8001 (твоя логика)
+        PID=$(lsof -t -i:$PORT)
+        if [ ! -z "$PID" ]; then
+            echo "💀 Порт $PORT занят (PID: $PID). Делаем харакири..."
+            kill -9 $PID
+            sleep 1 
+        fi
+
+        # Запускаем наши две Ollama
+        start_ollama_instances
+
+        echo "🌀 Чистый запуск MCP сервера на порту $PORT..."
+        
+        # Ловим выход из скрипта, чтобы потушить Ollama
+        trap stop_ollama_instances EXIT
+        
+        python3 "$SERVER_SCRIPT"
+        ;;
+    "clean-start")
+        # Полная чистка перед запуском
+        clean_all
+        
+        PID=$(lsof -t -i:$PORT)
+        if [ ! -z "$PID" ]; then
+            echo "💀 Порт $PORT занят (PID: $PID). Делаем харакири..."
+            kill -9 $PID
+            sleep 1 
+        fi
+
+        start_ollama_instances
+        echo "🌀 Чистый запуск MCP сервера на порту $PORT после уборки..."
+        
+        trap stop_ollama_instances EXIT
+        python3 "$SERVER_SCRIPT"
+        ;;
+    "stdio")
+        echo "⌨️  Запуск MCP сервера (STDIO)..."
+        python3 "$SERVER_SCRIPT" stdio
+        ;;
+    "test")
+        echo "🧪 Запуск тестового клиента..."
+        python3 "$CLIENT_SCRIPT"
+        ;;
+    "boss")
+        echo "⚖️ Вызов Верховного Судьи (Gemma3:12b) он наведет тут порядок ..."
+        python3 "$BOSS_SCRIPT"
+        ;;
+    "scan")
+        echo "📂 Запуск сканера директорий..."
+        python3 "$SCANNER_SCRIPT" "${@:2}"
+        ;;
+    *)
+        echo "Использование: $0 {clean|start|clean-start|stdio|test|scan [directory] | boss}"
+        ;;
+esac

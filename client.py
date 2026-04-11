@@ -1,0 +1,73 @@
+import asyncio
+from mcp import ClientSession
+from mcp.client.sse import sse_client
+
+# --- [🛠️] УМНЫЙ ВЫЗОВ ---
+async def safe_call(session: ClientSession, tools: list, name: str, args: dict = None):
+    if any(t.name == name for t in tools):
+        print(f"⟨⚙⟩ Выполняю: {name}...")
+        res = await session.call_tool(name, args or {})
+        # Извлекаем текст (Мэй всегда отдает TextContent)
+        text = res.content[0].text if isinstance(res.content, list) else res.content.text
+        print(f"   ⟨✓⟩ Ответ: {text}\n")
+        return text
+    else:
+        print(f"   ⟨!!⟩ Пропуск: {name} (не найден)\n")
+        return None
+
+async def main():
+    url = "http://localhost:8001/mcp"
+    print(f"🌀 Подключение к {url}...")
+
+    try:
+        async with sse_client(url) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                print("✅ Сессия ⟦HEALTHY⟧\n")
+                
+                # --- 1. СПИСОК ИНСТРУМЕНТОВ ---
+                print("🔍 Мэй проверяет свои модули...")
+                tools_resp = await session.list_tools()
+                available_tools = tools_resp.tools
+                
+                # # 📝 ВЫВОД ИНСТРУМЕНТОВ В КОНСОЛЬ
+                # print(f"⟦⚓⟧ ДОСТУПНО ИНСТРУМЕНТОВ: {len(available_tools)}")
+                # for i, tool in enumerate(available_tools, 1):
+                #     # Выводим имя и описание (первую строку)
+                #     desc = tool.description.split('\n')[0] if tool.description else "Нет описания"
+                #     print(f"  {i}. 🛠 {tool.name.ljust(20)} | {desc}")
+                # print("-" * 50 + "\n")
+
+                # --- 0. 📡 ПИНГ (Проверка связи после листинга) ---
+                await safe_call(session, available_tools, "ping")
+                
+                print("🔍 Мэй начинает инвентаризацию проекта...")
+                await safe_call(session, available_tools, "scan_directory_tool", {"directory": ".", "max_files": 20})
+                await safe_call(session, available_tools, "get_db_stats")
+                print("🔍 Мэй разобралась с инвентаризацией проекта...")
+                
+                # 4. 📊 ПРОВЕРКА КАРТОТЕКИ (Статистика)
+                print("📊 ПРОВЕРКА КАРТОТЕКИ (Статистика)")
+                await safe_call(session, available_tools, "get_db_stats")
+
+ 
+                # 5. 🔍 СЕМАНТИЧЕСКИЙ ПОИСК
+                # Проверим, нашла ли Мэй информацию о самой себе
+                print(" 🔍 СЕМАНТИЧЕСКИЙ ПОИСК: 📡 Как работает Мэй?")
+                await safe_call(session, available_tools, "get_verified_brief", {
+                    "query": "Как работает Мэй?",
+                    "include_gossip": True
+                })
+                
+                print("📡 Как Мэй обрабатывает ошибки при индексации файлов через Gemma?")
+                await safe_call(session, available_tools, "get_verified_brief", {
+                    "query": "Как Мэй обрабатывает ошибки при индексации файлов через Gemma?",
+                    "include_gossip": True
+                })
+
+
+    except Exception as e:
+        print(f"❌ Критическая ошибка: {e}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

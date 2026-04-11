@@ -1,0 +1,78 @@
+#S_EN: [CONFIG] NeuralVault-May Global Management
+
+project:
+  name: "NeuralVault-May"
+  version: "1.0-ALPHA"
+  description: "Agentic RAG with Universal Gateway"
+
+# Настройки хранения и логирования
+storage:
+  db_path: "./data/chroma_db"
+  inventory_path: "./data/inventory.db" # Путь для SQLite
+  collection_name: "mcp_knowledge"
+  vault_dir: "./.vault_internal"
+  chunk_size: 1500
+
+# Настройка маршрутов: кто на какой модели сидит
+routing:
+  embeddings:
+    provider: "ollama"
+    model: "mxbai-embed-large"
+  semantic:
+    provider: "ollama"
+    model: "gemma3:12b"
+    timeout: 150
+  cartographer:
+    provider: "ollama"
+    model: "deepseek-coder-v2:16b"
+    timeout: 120
+  boss:
+    provider: "ollama"
+    model: "gemma3:12b"
+    timeout: 60
+
+# Параметры провайдеров (куда стучаться)
+providers:
+  ollama:
+    base_url: "http://localhost:11434"
+  hf_hub:
+    token: "ENV_HF_TOKEN"
+    cache_dir: "./.vault_internal/models"
+  openai:
+    base_url: "https://openai.com"
+    api_key: "ENV_OPENAI_KEY"
+
+indexing:
+  pipeline_mode: "triple_pass"
+  recon_chunk_size: 5000 # Для разведки можно брать куски побольше
+  manifest_path: "./.vault_internal/GLOBAL_MANIFEST.yaml"
+  chunk_size: 2500
+  overlap: 300
+  vault_dir: "./.vault_internal"
+  journals_subdir: "journals"
+  passports_subdir: "passports"
+
+# Настройка физического железа
+compute_resources:
+  SYSTEM_GPU:
+    provider: "ollama"
+    port: 11434       # Твоя стандартная Ollama в демоне
+    active_model: "gemma3:12b"
+  GPU_0:
+    provider: "ollama"
+    port: 11435       # Наш новый процесс для GPU 0
+    active_model: "gemma3:12b"
+  GPU_1:
+    provider: "ollama"
+    port: 11436       # Наш новый процесс для GPU 1
+    active_model: "mxbai-embed-large"
+  CLOUD:
+    provider: "openrouter"
+    active_model: "anthropic/claude-3.5-sonnet"
+
+# Маршрутизация типов задач
+task_routing:
+  quick_chat: "SYSTEM_GPU"   # Быстрый чат с тобой идет через дефолтную Ollama
+  text_slicing: "GPU_0"      # Тяжелая нарезка уходит на GPU 0
+  embeddings: "GPU_1"        # Векторизация идет на GPU 1
+  strategic_boss: "CLOUD"    # Самые сложные выводы — в облако
