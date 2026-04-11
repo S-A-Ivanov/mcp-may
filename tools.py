@@ -48,7 +48,7 @@ collection = chroma_client.get_or_create_collection(
 
 
 # 4. 🗄️ Инвентарь (SQLite путь тоже из конфига)
-from inventory import FileInventory
+from specialists.inventory import FileInventory
 inv = FileInventory(db_path=db_cfg.get('inventory_path', "./data/inventory.db"))
 
 # 5. 🏢 Расселение Специалистов (Инъекция зависимостей)

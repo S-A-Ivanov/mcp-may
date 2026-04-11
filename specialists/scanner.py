@@ -1,7 +1,7 @@
 import os
 import uuid
 from pathlib import Path
-from inventory import FileInventory
+from specialists.inventory import FileInventory
 
 # [⚙] СКАНЕР: Рекурсивный обход директории
 def scan_directory(directory: str, max_files: int = 100):

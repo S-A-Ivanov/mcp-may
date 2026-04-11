@@ -171,7 +171,7 @@ class Librarian:
     async def run_pipeline(self, root_path: Path, max_files: int):
         """#S_EN: [PIPELINE] Координация фаз."""
         try:
-            from scanner import scan_directory
+            from specialists.scanner import scan_directory
             files_data, _, _ = scan_directory(str(root_path), max_files)
             
             # --- ФАЗА 1: РАЗВЕДКА ---
