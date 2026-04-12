@@ -300,3 +300,38 @@ class Librarian:
             self.logger.info(f"✅ [MANIFEST] Успешно создан: {manifest_path}")
         except Exception as e:
             self.logger.error(f"❌ Ошибка записи GLOBAL_MANIFEST.yaml: {e}")
+
+    def set_workspace(self, project_root_path: str):
+        """
+        #S_EN: [WORKSPACE] Привязка Мэй к конкретной рабочей директории проекта.
+        Создает скрытую папку .mcp_vault прямо внутри проекта для хранения БД и паспортов.
+        """
+        import chromadb
+        from pathlib import Path
+        
+        root = Path(project_root_path).resolve()
+        
+        # 1. Задаем путь к скрытой папке в корне проекта (как .git)
+        self.vault_dir = root / ".mcp_vault"
+        self.vault_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 2. Переинициализируем ChromaDB внутри этой папки!
+        db_path = str(self.vault_dir / "chroma_db")
+        self.logger.info(f"💾 Подключение Теневого Индекса Workspace: {db_path}")
+        
+        # Пересоздаем клиент для новой папки
+        self.collection = None # Сначала зануляем старую
+        chroma_client = chromadb.PersistentClient(path=db_path)
+        
+        # 3. Обновляем коллекцию
+        self.collection = chroma_client.get_or_create_collection(
+            name="workspace_atoms"
+        )
+        
+        # 4. Перенаправляем пути для планов и паспортов
+        self.plans_dir = self.vault_dir / "plans"
+        self.passports_dir = self.vault_dir / "passports"
+        self.plans_dir.mkdir(exist_ok=True)
+        self.passports_dir.mkdir(exist_ok=True)
+        
+        self.logger.info(f"✅ Рабочее пространство успешно привязано к {root}")

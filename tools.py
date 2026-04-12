@@ -55,14 +55,22 @@ inv = FileInventory(db_path=db_cfg.get('inventory_path', "./data/inventory.db"))
 from specialists.semantic import SemanticDirector
 from specialists.librarian import Librarian
 from specialists.reporter import Reporter
+from specialists.navigator import Navigator
 
 director = SemanticDirector(gateway=gateway)
 lib = Librarian(collection, inv, gateway,director, orchestrator)
 reporter = Reporter(gateway=gateway) 
+navigator = Navigator(gateway=gateway, orchestrator=orchestrator)
 
 # ОФФЛАЙН флаги (можно тоже в конфиг, но пока оставим тут)
 os.environ['TRANSFORMERS_OFFLINE'] = '1'
 os.environ['HF_HUB_OFFLINE'] = '1'
+
+# 🔗 Связываем их с Дирижером!
+orchestrator.navigator = navigator
+orchestrator.lib = lib
+orchestrator.reporter = reporter
+
 
 def register_tools(mcp):
     """Регистрация инструментов в объекте FastMCP"""
@@ -84,15 +92,57 @@ def register_tools(mcp):
     # async def get_verified_brief(query: str):
     #     return await lib.search_facts(query)
    
+    # @mcp.tool()
+    # async def get_verified_brief(query: str, include_gossip: bool = False) -> str:
+    #     """#S_EN: [SECRETARY] Поиск фактов и отдача ГОТОВОГО отчета Боссу."""
+        
+    #     # Мы просто просим референта сделать всю работу!
+    #     # Передаем объект библиотекаря (lib), который вы инициализировали в tools.py
+    #     return await reporter.create_verified_brief(lib, query, include_gossip)
+    
     @mcp.tool()
     async def get_verified_brief(query: str, include_gossip: bool = False) -> str:
         """#S_EN: [SECRETARY] Поиск фактов и отдача ГОТОВОГО отчета Боссу."""
         
-        # Мы просто просим референта сделать всю работу!
-        # Передаем объект библиотекаря (lib), который вы инициализировали в tools.py
-        return await reporter.create_verified_brief(lib, query, include_gossip)
+        print("🎭 [TOOLS] Передаю задачу напрямую в Оркестратор...")
+        
+        # Вызываем метод напрямую без очередей и Future!
+        try:
+            result = await orchestrator.execute_pipeline_directly("coordinated_brief", query)
+            return result
+        except Exception as e:
+            return f"❌ Ошибка выполнения пайплайна: {e}"
 
-   
+    # @mcp.tool()
+    # async def get_verified_brief(query: str, include_gossip: bool = False) -> str:
+    #     """#S_EN: [SECRETARY] Поиск фактов и отдача ГОТОВОГО отчета Боссу."""
+        
+    #     # ⚠️ УБИРАЕМ await перед orchestrator.add_task!
+    #     # Функция add_task вернет объект Future мгновенно.
+    #     task_future = await orchestrator.add_task(
+    #         task_type="coordinated_brief",
+    #         priority=3,
+    #         prompt=query,
+    #         schema="text"
+    #     )
+        
+    #     # А вот здесь мы засыпаем и ждем, пока Дирижер выполнит задачу
+    #     return await task_future
+    
+    # @mcp.tool()
+    # async def get_verified_brief(query: str, include_gossip: bool = False) -> str:
+    #     """#S_EN: [SECRETARY] Поиск фактов и отдача ГОТОВОГО отчета Боссу."""
+        
+    #     # Ставим задачу Дирижеру на выполнение комплексного пайплайна
+    #     future = await orchestrator.add_task(
+    #         task_type="coordinated_brief",
+    #         priority=3,
+    #         prompt=query,
+    #         schema="text"
+    #     )
+    #     # Дожидаемся, пока Дирижер проведет задачу по всем агентам
+    #     return await future
+
    
     # @mcp.tool()
     # async def get_verified_brief(query: str, include_gossip: bool = False) -> str:
@@ -141,4 +191,17 @@ def register_tools(mcp):
         """#S_EN: [TOOL] Прием умного чанка от внешнего Специалиста."""
         return lib.ingest_chunk(content, metadata)
 
-  
+     @mcp.tool()
+    async def sync_project_folder(folder_path: str) -> str:
+        """#S_EN: [TOOL] Запускает инкрементальную синхронизацию папки."""
+        
+        if not os.path.exists(folder_path):
+            return f"⟦✗⟧ Путь {folder_path} не существует."
+            
+        # 🚀 1. Сначала привязываем Воркспейс!
+        lib.set_workspace(folder_path)
+        
+        # 2. И только потом запускаем конвейер
+        asyncio.create_task(lib.run_pipeline(Path(folder_path), max_files=50))
+        
+        return f"⟦✓⟧ Рабочее пространство создано в `{folder_path}/.mcp_vault`. Индексация запущена."

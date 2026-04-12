@@ -38,7 +38,49 @@ class ComputeOrchestrator:
             "future": future
         }))
         
-        return await future
+        return future
+
+    async def execute_pipeline_directly(self, task_type: str, query: str) -> str:
+        """Выполнение задачи напрямую по технологической карте без очереди."""
+        
+        # 🤖 1. Спрашиваем у Технолога карту
+        route_card = self.technologist.get_routing_card(task_type)
+        
+        if not route_card:
+            raise ValueError(f"Технологическая карта для {task_type} не найдена!")
+            
+        self.logger.info(f"🎭 Дирижер запускает прямую тех. карту для: {task_type}")
+        current_context = query
+        
+        # 🛑 ПРОВЕРКА: Привязали ли мы специалистов?
+        if not self.navigator or not self.lib or not self.reporter:
+            raise ValueError("Специалисты (navigator, lib, reporter) не подключены к Оркестратору!")
+
+        for stage in route_card:
+            actor = stage["actor"]
+            action = stage["action"]
+            self.logger.info(f"⚙️ Шаг {stage['step']}: Передача в {actor} -> {action}")
+            
+            # 🚦 Шаг 1: Навигатор
+            if actor == "navigator" and action == "build_strategy":
+                current_context = await self.navigator.build_search_strategy(current_context)
+                
+            # 🚦 Шаг 2: Библиотекарь
+            elif actor == "librarian" and action == "fetch_context":
+                all_docs, all_metas = [], []
+                for sub_query in current_context:
+                    results = self.lib.get_search_context(sub_query, n_results=2)
+                    if results.get('documents') and results['documents']:
+                        all_docs.extend(results['documents'])
+                        all_metas.extend(results['metadatas'])
+                current_context = {"documents": all_docs, "metadatas": all_metas}
+                
+            # 🚦 Шаг 3: Референт
+            elif actor == "reporter" and action == "compile_final":
+                current_context = await self.reporter.compile_brief(query, current_context)
+
+        return f"⟦⚓⟧ ОТЧЕТ МЭЙ ДЛЯ БОССА\n{current_context}"
+
 
     async def start_dispatcher(self):
         """Главный цикл Дирижера [CHUNKING]."""
@@ -54,51 +96,109 @@ class ComputeOrchestrator:
             asyncio.create_task(self._process_task(resource, task_data))
             self.queue.task_done()
 
+
     async def _process_task(self, resource: str, task_data: dict):
         """Выполнение задачи с динамической маршрутизацией по тех. карте."""
         
         task_type = task_data["task_type"]
         query = task_data["prompt"]
+        future = task_data["future"]
         
-        # 🤖 1. Спрашиваем у Технолога карту для этой задачи
-        # (self.technologist должен быть передан при инициализации)
+        # 1. Спрашиваем у Технолога карту
         route_card = self.technologist.get_routing_card(task_type)
         
-        # Если для задачи есть тех. карта — запускаем конвейер
+        # 🎭 Если есть тех. карта — запускаем конвейер
         if route_card:
             self.logger.info(f"🎭 Дирижер запускает тех. карту для: {task_type}")
-            current_context = query # Входные данные
+            current_context = query
             
             try:
+                # 🛑 ПРОВЕРКА: А привязали ли мы специалистов к Дирижеру?
+                if not self.navigator or not self.lib or not self.reporter:
+                    raise ValueError("Критика: Специалисты (navigator, lib, reporter) не подключены к Оркестратору!")
+
                 for stage in route_card:
                     actor = stage["actor"]
                     action = stage["action"]
                     self.logger.info(f"⚙️ Шаг {stage['step']}: Передача в {actor} -> {action}")
                     
-                    # 🚦 Динамический вызов специалистов
+                    # 🚦 Шаг 1: Навигатор
                     if actor == "navigator" and action == "build_strategy":
                         current_context = await self.navigator.build_search_strategy(current_context)
                         
+                    # 🚦 Шаг 2: Библиотекарь
                     elif actor == "librarian" and action == "fetch_context":
-                        # Ищем по всем 3 запросам из навигатора
                         all_docs, all_metas = [], []
                         for sub_query in current_context:
                             results = self.lib.get_search_context(sub_query, n_results=2)
-                            if results.get('documents'):
+                            if results.get('documents') and results['documents']:
                                 all_docs.extend(results['documents'])
                                 all_metas.extend(results['metadatas'])
                         current_context = {"documents": all_docs, "metadatas": all_metas}
                         
+                    # 🚦 Шаг 3: Референт
                     elif actor == "reporter" and action == "compile_final":
                         current_context = await self.reporter.compile_brief(query, current_context)
 
-                # Завершаем задачу, отдаем результат
-                task_data["future"].set_result(current_context)
+                # ✅ ВАЖНО: Отдаем результат клиенту!
+                future.set_result(f"⟦⚓⟧ ОТЧЕТ МЭЙ ДЛЯ БОССА\n{current_context}")
                 
             except Exception as e:
                 self.logger.error(f"🚨 Брак на линии {task_type}: {e}")
-                task_data["future"].set_exception(e)
-            return
+                # 💥 ВАЖНО: Если упали, прокидываем ошибку клиенту, чтобы он не висел!
+                future.set_exception(e)
+            
+            return # Прерываем выполнение метода, чтобы не пойти в базовый блок
+
+        # ⚙️ НИЖЕ ИДЕТ ВАШ СТАРЫЙ КОД ДЛЯ ОБЫЧНЫХ ВЫЗОВОВ LLM
+        # ...
+
+    # async def _process_task(self, resource: str, task_data: dict):
+    #     """Выполнение задачи с блокировкой конкретного ресурса."""
+        
+    #     task_type = task_data["task_type"]
+    #     query = task_data["prompt"]
+        
+    #     # 🤖 1. Спрашиваем у Технолога карту для этой задачи
+    #     # (Объект technologist мы прокинем в self в Шаге 4)
+    #     route_card = self.technologist.get_routing_card(task_type)
+        
+    #     # 🎭 Если для задачи есть тех. карта — запускаем конвейер по шагам!
+    #     if route_card:
+    #         self.logger.info(f"🎭 Дирижер запускает тех. карту для: {task_type}")
+    #         current_context = query # Входные данные (вопрос пользователя)
+            
+    #         try:
+    #             for stage in route_card:
+    #                 actor = stage["actor"]
+    #                 action = stage["action"]
+    #                 self.logger.info(f"⚙️ Шаг {stage['step']}: Передача в {actor} -> {action}")
+                    
+    #                 # 🚦 Шаг 1: Навигатор придумывает 3 подзапроса
+    #                 if actor == "navigator" and action == "build_strategy":
+    #                     current_context = await self.navigator.build_search_strategy(current_context)
+                        
+    #                 # 🚦 Шаг 2: Библиотекарь ищет по этим запросам в БД
+    #                 elif actor == "librarian" and action == "fetch_context":
+    #                     all_docs, all_metas = [], []
+    #                     for sub_query in current_context:
+    #                         results = self.lib.get_search_context(sub_query, n_results=2)
+    #                         if results.get('documents') and results['documents'][0]:
+    #                             all_docs.extend(results['documents'][0])
+    #                             all_metas.extend(results['metadatas'][0])
+    #                     current_context = {"documents": all_docs, "metadatas": all_metas}
+                        
+    #                 # 🚦 Шаг 3: Референт пишет итоговый отчет Боссу
+    #                 elif actor == "reporter" and action == "compile_final":
+    #                     current_context = await self.reporter.compile_brief(query, current_context)
+
+    #             # Завершаем задачу и отдаем результат клиенту
+    #             task_data["future"].set_result(f"⟦⚓⟧ ОТЧЕТ МЭЙ ДЛЯ БОССА\n{current_context}")
+                
+    #         except Exception as e:
+    #             self.logger.error(f"🚨 Брак на линии {task_type}: {e}")
+    #             task_data["future"].set_exception(e)
+    #         return
 
         # ⚙️ Базовый вызов одиночных LLM (если карты нет)
         async def _execute():
