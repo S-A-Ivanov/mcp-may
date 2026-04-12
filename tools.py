@@ -54,9 +54,11 @@ inv = FileInventory(db_path=db_cfg.get('inventory_path', "./data/inventory.db"))
 # 5. 🏢 Расселение Специалистов (Инъекция зависимостей)
 from specialists.semantic import SemanticDirector
 from specialists.librarian import Librarian
+from specialists.reporter import Reporter
 
 director = SemanticDirector(gateway=gateway)
 lib = Librarian(collection, inv, gateway,director, orchestrator)
+reporter = Reporter(gateway=gateway) 
 
 # ОФФЛАЙН флаги (можно тоже в конфиг, но пока оставим тут)
 os.environ['TRANSFORMERS_OFFLINE'] = '1'
@@ -71,37 +73,55 @@ def register_tools(mcp):
         return lib.add_manual_fact(text, status)
  
     # @mcp.tool()
+    # async def get_verified_brief(query: str, include_gossip: bool = False) -> str:
+    #     """#S_EN: [SECRETARY] Поиск фактов и отдача ГОТОВОГО отчета Боссу."""
+        
+    #     # Инструмент ничего не знает про Штурмана и Референта. 
+    #     # Он просто дергает Библиотекаря!
+    #     return await lib.produce_coordinated_brief(query)
+
+    # @mcp.tool()
     # async def get_verified_brief(query: str):
     #     return await lib.search_facts(query)
-    
+   
     @mcp.tool()
     async def get_verified_brief(query: str, include_gossip: bool = False) -> str:
-        """#S_EN: [SECRETARY] Поиск фактов по Теневому Индексу (Proto-Data)."""
+        """#S_EN: [SECRETARY] Поиск фактов и отдача ГОТОВОГО отчета Боссу."""
         
-        # Вызов Библиотекаря (теперь метод get_search_context существует)
-        results = lib.get_search_context(query, n_results=5)
+        # Мы просто просим референта сделать всю работу!
+        # Передаем объект библиотекаря (lib), который вы инициализировали в tools.py
+        return await reporter.create_verified_brief(lib, query, include_gossip)
 
-        # Проверка на пустоту (ChromaDB возвращает [[], []] если ничего не найдено)
-        if not results['documents'] or not results['documents'][0]:
-            return f"🔍 По теме '{query}' в архивах Мэй ничего не найдено."
-
-        report = f"⟦⚓⟧ ОТЧЕТ МЭЙ (Найдено атомов: {len(results['documents'][0])})\n"
+   
+   
+    # @mcp.tool()
+    # async def get_verified_brief(query: str, include_gossip: bool = False) -> str:
+    #     """#S_EN: [SECRETARY] Поиск фактов по Теневому Индексу (Proto-Data)."""
         
-        # Распаковываем первый уровень списков [0]
-        for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
-            report += "\n" + "─" * 60 + "\n"
-            report += f"📡 [INDEX]: {doc}\n"
-            report += f"📍 [UNIT]: {meta.get('header', 'Unknown')}\n"
-            report += f"💻 [CODE]:\n{meta.get('code', 'N/A')}\n"
+    #     # Вызов Библиотекаря (теперь метод get_search_context существует)
+    #     results = lib.get_search_context(query, n_results=5)
+
+    #     # Проверка на пустоту (ChromaDB возвращает [[], []] если ничего не найдено)
+    #     if not results['documents'] or not results['documents'][0]:
+    #         return f"🔍 По теме '{query}' в архивах Мэй ничего не найдено."
+
+    #     report = f"⟦⚓⟧ ОТЧЕТ МЭЙ (Найдено атомов: {len(results['documents'][0])})\n"
+        
+    #     # Распаковываем первый уровень списков [0]
+    #     for doc, meta in zip(results['documents'][0], results['metadatas'][0]):
+    #         report += "\n" + "─" * 60 + "\n"
+    #         report += f"📡 [INDEX]: {doc}\n"
+    #         report += f"📍 [UNIT]: {meta.get('header', 'Unknown')}\n"
+    #         report += f"💻 [CODE]:\n{meta.get('code', 'N/A')}\n"
             
-            # Выводим зависимости, если они есть
-            reqs = meta.get('requires', 'none')
-            if reqs and reqs != 'none':
-                report += f"📦 [REQS]: {reqs}\n"
+    #         # Выводим зависимости, если они есть
+    #         reqs = meta.get('requires', 'none')
+    #         if reqs and reqs != 'none':
+    #             report += f"📦 [REQS]: {reqs}\n"
                 
-            report += "─" * 60
+    #         report += "─" * 60
 
-        return report
+    #     return report
 
     @mcp.tool()
     async def get_db_stats():

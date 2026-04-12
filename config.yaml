@@ -30,6 +30,18 @@ routing:
     provider: "ollama"
     model: "gemma3:12b"
     timeout: 60
+  
+  # специалист-аналитик
+  reporter:
+    provider: ollama
+    model: qwen2.5-coder:latest 
+    timeout: 60
+
+  # специалист-подбора запросов к бд search_strategy
+  navigator:
+    provider: ollama
+    model: lfm2.5-thinking:latest
+    timeout: 30 # Модель маленькая, отвечать должна быстро
 
 # Параметры провайдеров (куда стучаться)
 providers:
@@ -76,3 +88,4 @@ task_routing:
   text_slicing: "GPU_0"      # Тяжелая нарезка уходит на GPU 0
   embeddings: "GPU_1"        # Векторизация идет на GPU 1
   strategic_boss: "CLOUD"    # Самые сложные выводы — в облако
+  search_strategy: GPU_0     # Пускаем на основную или второстепенную карту

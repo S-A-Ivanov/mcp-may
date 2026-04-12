@@ -34,10 +34,10 @@ async def main():
                 # --- 0. 📡 ПИНГ (Проверка связи после листинга) ---
                 await safe_call(session, available_tools, "ping")
                 
-                print("🔍 Мэй начинает инвентаризацию проекта...")
-                await safe_call(session, available_tools, "scan_directory_tool", {"directory": ".", "max_files": 20})
-                await safe_call(session, available_tools, "get_db_stats")
-                print("🔍 Мэй разобралась с инвентаризацией проекта...")
+                #print("🔍 Мэй начинает инвентаризацию проекта...")
+                #await safe_call(session, available_tools, "scan_directory_tool", {"directory": ".", "max_files": 20})
+                #await safe_call(session, available_tools, "get_db_stats")
+                #print("🔍 Мэй разобралась с инвентаризацией проекта...")
                 
                 # 4. 📊 ПРОВЕРКА КАРТОТЕКИ (Статистика)
                 print("📊 ПРОВЕРКА КАРТОТЕКИ (Статистика)")
@@ -46,15 +46,15 @@ async def main():
  
                 # 5. 🔍 СЕМАНТИЧЕСКИЙ ПОИСК
                 # Проверим, нашла ли Мэй информацию о самой себе
-                # print(" 🔍 СЕМАНТИЧЕСКИЙ ПОИСК: 📡 Как работает Мэй?")
-                # await safe_call(session, available_tools, "get_verified_brief", {
-                #     "query": "Как работает Мэй?",
-                #     "include_gossip": True
-                # })
-                
-                print("📡 как связаны между собой Librarian, Orchestrator и UniversalGateway при обработке файлов?")
+                print(" 🔍 СЕМАНТИЧЕСКИЙ ПОИСК: 📡 Как организованна очередь зада?")
                 await safe_call(session, available_tools, "get_verified_brief", {
-                    "query": "как связаны между собой Librarian, Orchestrator и UniversalGateway при обработке файлов?",
+                    "query": "Как организованна очередь задач?",
+                    "include_gossip": True
+                })
+                
+                print("📡 Сейчас база данных привязана к директории кода, как нам сделать чтобы база хранилась в сканируемой директории, нужно добавить понятие рабочее пространство?")
+                await safe_call(session, available_tools, "get_verified_brief", {
+                    "query": "Сейчас база данных привязана к директории кода, как нам сделать чтобы база хранилась в сканируемой директории, нужно добавить понятие рабочее пространство?",
                     "include_gossip": True
                 })
 

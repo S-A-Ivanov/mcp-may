@@ -2,6 +2,7 @@ import asyncio
 import time
 import logging
 from pathlib import Path
+from specialists.technologist import Technologist
 
 class ComputeOrchestrator:
     """#S_EN: [ORCHESTRATOR] Дирижер вычислений.
@@ -12,7 +13,7 @@ class ComputeOrchestrator:
         # Берем конфиг прямо из шлюза
         self.cfg = gateway.cfg
         self.logger = logging.getLogger("mcp_may.orchestrator")
-        
+        self.technologist = Technologist()
         # 🚦 Единая приоритетная очередь
         self.queue = asyncio.PriorityQueue()
         self.running = True
@@ -54,8 +55,52 @@ class ComputeOrchestrator:
             self.queue.task_done()
 
     async def _process_task(self, resource: str, task_data: dict):
-        """Выполнение задачи с блокировкой конкретного ресурса."""
+        """Выполнение задачи с динамической маршрутизацией по тех. карте."""
         
+        task_type = task_data["task_type"]
+        query = task_data["prompt"]
+        
+        # 🤖 1. Спрашиваем у Технолога карту для этой задачи
+        # (self.technologist должен быть передан при инициализации)
+        route_card = self.technologist.get_routing_card(task_type)
+        
+        # Если для задачи есть тех. карта — запускаем конвейер
+        if route_card:
+            self.logger.info(f"🎭 Дирижер запускает тех. карту для: {task_type}")
+            current_context = query # Входные данные
+            
+            try:
+                for stage in route_card:
+                    actor = stage["actor"]
+                    action = stage["action"]
+                    self.logger.info(f"⚙️ Шаг {stage['step']}: Передача в {actor} -> {action}")
+                    
+                    # 🚦 Динамический вызов специалистов
+                    if actor == "navigator" and action == "build_strategy":
+                        current_context = await self.navigator.build_search_strategy(current_context)
+                        
+                    elif actor == "librarian" and action == "fetch_context":
+                        # Ищем по всем 3 запросам из навигатора
+                        all_docs, all_metas = [], []
+                        for sub_query in current_context:
+                            results = self.lib.get_search_context(sub_query, n_results=2)
+                            if results.get('documents'):
+                                all_docs.extend(results['documents'])
+                                all_metas.extend(results['metadatas'])
+                        current_context = {"documents": all_docs, "metadatas": all_metas}
+                        
+                    elif actor == "reporter" and action == "compile_final":
+                        current_context = await self.reporter.compile_brief(query, current_context)
+
+                # Завершаем задачу, отдаем результат
+                task_data["future"].set_result(current_context)
+                
+            except Exception as e:
+                self.logger.error(f"🚨 Брак на линии {task_type}: {e}")
+                task_data["future"].set_exception(e)
+            return
+
+        # ⚙️ Базовый вызов одиночных LLM (если карты нет)
         async def _execute():
             try:
                 # 📡 Вызываем Шлюз, передавая ему вычисленный ресурс
