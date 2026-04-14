@@ -1,9 +1,9 @@
 import logging
+from core.base import BaseAsyncSpecialist
 
-logger = logging.getLogger("mcp_may.reporter")
-
-class Reporter:
+class Reporter(BaseAsyncSpecialist):
     def __init__(self, gateway):
+        super().__init__(name="reporter")
         self.gateway = gateway # Наш UniversalGateway
 
     async def compile_brief(self, query: str, raw_atoms: dict) -> str:
@@ -63,7 +63,7 @@ class Reporter:
             return f"⟦⚓⟧ ОТЧЕТ МЭЙ ДЛЯ БОССА\n{summary}"
                     
         except Exception as e:
-            logger.error(f"Ошибка Референта при суммаризации: {e}")
+            self.logger.error(f"Ошибка Референта при суммаризации: {e}")
             return f"Ошибка при подготовке отчета: {str(e)}"
 
 

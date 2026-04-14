@@ -1,14 +1,12 @@
-import json
 import logging
-import time
-import yaml
 from pathlib import Path
+from core.base import BaseSpecialist
 
-class SemanticDirector:
+class SemanticDirector(BaseSpecialist):
     def __init__(self, gateway):
+        super().__init__(name="semantic")
         self.gateway = gateway
         self.cfg = gateway.cfg.get('indexing', {})
-        self.logger = logging.getLogger("mcp_may.semantic")
         
         # Настройки из конфига
         self.chunk_size = self.cfg.get('chunk_size', 2500)

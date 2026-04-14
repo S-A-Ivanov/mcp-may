@@ -7,9 +7,14 @@ import logging
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
+from core.llm_gateway import LLMBasicGateway
 
-class UniversalGateway:
+
+class UniversalGateway(LLMBasicGateway):
     """#S_EN: [GATEWAY] Универсальный роутер запросов с тотальным логированием.
+    
+    Наследуется от LLMBasicGateway из core, добавляет специфичную логику
+    маршрутизации по провайдерам.
     
     Attributes:
         cfg: Конфигурация из config.yaml.
@@ -22,27 +27,14 @@ class UniversalGateway:
         
         Args:
             config_path: Путь к файлу конфигурации относительно корня проекта.
-            
-        Raises:
-            FileNotFoundError: Если файл конфигурации не найден.
         """
-        # 📂 Принудительно ищем конфиг в корне проекта (на уровень выше от специалиста)
-        base_dir = Path(__file__).parent.parent.resolve()
-        full_config_path = base_dir / config_path
-        
-        if not full_config_path.exists():
-            raise FileNotFoundError(f"❌ Критическая ошибка: Не нашел {full_config_path}")
-            
-        with open(full_config_path, 'r', encoding='utf-8') as f:
-            self.cfg: Dict[str, Any] = yaml.safe_load(f)
-        
-        # Настройка путей из конфига тоже через абсолютный путь
-        self.raw_dir = base_dir / self.cfg['storage'].get('vault_dir', './.vault_internal') / "raw_exchange"
-        self.raw_dir.mkdir(parents=True, exist_ok=True)
-        self.logger = logging.getLogger("mcp_may.gateway")
+        super().__init__(config_path)
 
     def _call_ollama_embeddings(self, model: str, text: str) -> List[float]:
         """#S_EN: [INTERNAL] Низкоуровневый запрос векторов.
+        
+        Переопределяет метод родителя для кастомной логики (если нужна).
+        В текущей версии использует реализацию родителя.
         
         Args:
             model: Название модели для эмбеддингов.
@@ -51,16 +43,37 @@ class UniversalGateway:
         Returns:
             Вектор эмбеддинга.
         """
-        url = f"{self.cfg['providers']['ollama']['base_url']}/api/embeddings"
-        payload = {"model": model, "prompt": text}
+        # Используем реализацию родителя
+        return super()._call_ollama_embeddings(model, text)
+
+    def _call_provider(self, provider: str, model: str, prompt: str, 
+                       schema: str, timeout: int) -> Dict[str, Any]:
+        """Реализация абстрактного метода маршрутизации по провайдерам.
         
-        r = requests.post(url, json=payload, timeout=60)
-        r.raise_for_status()
-        
-        return r.json().get("embedding", [0.0] * 1024)
+        Args:
+            provider: Название провайдера (ollama, openai).
+            model: Модель для генерации.
+            prompt: Промпт.
+            schema: Формат ответа.
+            timeout: Таймаут.
+            
+        Returns:
+            Ответ от модели.
+            
+        Raises:
+            ValueError: Если провайдер не реализован.
+        """
+        if provider == "ollama":
+            return self._call_ollama(model, prompt, schema, timeout)
+        elif provider == "openai":
+            return self._call_openai(model, prompt, schema, timeout)
+        else:
+            raise ValueError(f"Provider {provider} not implemented!")
 
     def ask(self, specialist: str, prompt: str, schema: str = "text") -> Dict[str, Any]:
         """#S_EN: [PROCESS] Главный метод запроса.
+        
+        Переопределяет метод родителя для добавления специфичного логирования TARGET.
         
         Args:
             specialist: Имя специалиста из конфигурации.
@@ -85,17 +98,12 @@ class UniversalGateway:
         ts = time.strftime("%Y%m%d_%H%M%S")
         log_base = f"{ts}_{specialist}_{model.replace(':', '-')}"
         
-        # 📂 Логируем ПРЕДПОЛАГАЕМЫЙ запрос
+        # 📂 Логируем ПРЕДПОЛАГАЕМЫЙ запрос (с указанием провайдера)
         with open(self.raw_dir / f"{log_base}_REQ.txt", "w", encoding="utf-8") as f:
             f.write(f"TARGET: {provider}/{model}\n{'-'*30}\n{prompt}")
 
         try:
-            if provider == "ollama":
-                res = self._call_ollama(model, prompt, schema, timeout)
-            elif provider == "openai":
-                res = self._call_openai(model, prompt, schema, timeout)
-            else:
-                raise ValueError(f"Provider {provider} not implemented!")
+            res = self._call_provider(provider, model, prompt, schema, timeout)
 
             # 📂 Логируем ПОЛУЧЕННЫЙ ответ
             with open(self.raw_dir / f"{log_base}_RES.json", "w", encoding="utf-8") as f:
@@ -150,6 +158,8 @@ class UniversalGateway:
     def get_from_hf(self, repo_id: str, filename: str) -> str:
         """#S_EN: [HF_HUB] Загрузка моделей или весов через шлюз.
         
+        Переопределяет метод родителя для кастомного логирования.
+        
         Args:
             repo_id: ID репозитория на HuggingFace.
             filename: Имя файла для загрузки.
@@ -157,18 +167,17 @@ class UniversalGateway:
         Returns:
             Путь к загруженному файлу.
         """
-        from huggingface_hub import hf_hub_download
-        
         token = self.cfg['providers']['hf_hub'].get('token')
         cache = self.cfg['providers']['hf_hub'].get('cache_dir')
         
         self.logger.info(f"📡 Gateway: Загрузка {filename} из {repo_id}...")
         
-        # Логируем действие в наш общий реестр
+        # Логируем действие в наш общий реестр (кастомный формат)
         ts = time.strftime("%Y%m%d_%H%M%S")
         with open(self.raw_dir / f"{ts}_HF_DOWNLOAD.txt", "w") as f:
             f.write(f"REPO: {repo_id}\nFILE: {filename}")
 
+        from huggingface_hub import hf_hub_download
         return hf_hub_download(
             repo_id=repo_id, 
             filename=filename, 
@@ -178,6 +187,8 @@ class UniversalGateway:
     
     def get_embeddings(self, text: str, model: Optional[str] = None) -> List[float]:
         """Получение эмбеддингов для текста.
+        
+        Переопределяет метод родителя для использования секции 'embeddings'.
         
         Args:
             text: Текст для векторизации.
@@ -194,9 +205,10 @@ class UniversalGateway:
         # Логируем только если уровень DEBUG или если возникла ошибка
         try:
             if provider == "ollama":
-                return self._call_ollama_embeddings(model, text)
+                return super().get_embeddings(text, model)
             elif provider == "openai":
-                return self._call_openai_embeddings(model, text)
+                # Здесь можно добавить _call_openai_embeddings при необходимости
+                pass
             return [0.0] * 1024
         except Exception as e:
             self.logger.error(f"🚨 Embedding Error: {e}")
