@@ -17,29 +17,30 @@ NeuralVault-May — это продвинутая система, сочетаю
 
 ## 🏗️ Архитектура
 
-### Агенты системы:
+### Агенты системы (Specialists):
 
 | Агент | Файл | Роль |
 |-------|------|------|
-| **Architect** | `architect.py` | Структура кода, управление задачами, AI Forge |
-| **Cartographer** | `cartographer.py` | Визуализация связей кода (Mermaid graphs) |
-| **Librarian** | `librarian.py` | Управление архивом знаний, индексация |
-| **Orchestrator** | `orchestrator.py` | Координация агентов и пайплайнов |
-| **Scanner** | `scanner.py` | Сканирование файлов проекта |
-| **Semantic** | `semantic.py` | Семантическая обработка запросов |
-| **Gateway** | `gateway.py` | Универсальный шлюз к провайдерам LLM |
+| **Orchestrator** | `specialists/orchestrator.py` | Координация агентов и пайплайнов |
+| **Librarian** | `specialists/librarian.py` | Управление архивом знаний, трёхпроходная индексация |
+| **Semantic** | `specialists/semantic.py` | Семантическая обработка запросов |
+| **Scanner** | `specialists/scanner.py` | Сканирование файлов проекта (Recon pass) |
+| **Gateway** | `specialists/gateway.py` | Универсальный шлюз к провайдерам LLM (Ollama, OpenAI, Cloud) |
+| **Inventory** | `specialists/inventory.py` | SQLite инвентарь ресурсов проекта |
+| **Embeddings** | `specialists/embeddings.py` | Генерация эмбеддингов через Ollama |
+| **Navigator** | `specialists/navigator.py` | Навигация по кодовой базе |
+| **Technologist** | `specialists/technologist.py` | Анализ технологического стека |
+| **Reporter** | `specialists/reporter.py` | Генерация отчётов и документации |
 
-### Утилиты:
+### Основные компоненты:
 
 | Компонент | Файл | Назначение |
 |-----------|------|------------|
+| **Server** | `server_may.py` | MCP сервер |
 | **Client** | `client.py` | MCP клиент для взаимодействия |
 | **Tools** | `tools.py` | Общие инструменты |
 | **Transport** | `transport.py` | Транспортный слой |
-| **Pipeline Manager** | `pipeline_manager.py` | Управление пайплайнами индексации |
-| **Inventory** | `inventory.py` | SQLite инвентарь ресурсов |
-| **Embeddings** | `embeddings.py` | Генерация эмбеддингов |
-| **Server** | `server_may.py` | MCP сервер |
+| **Config** | `config.yaml` | Конфигурация системы |
 
 ---
 
@@ -101,23 +102,29 @@ python client.py
 
 ```
 NeuralVault-May/
-├── architect.py           # Агент структуры кода
-├── cartographer.py        # Агент картографирования
-├── librarian.py           # Агент управления знаниями
-├── orchestrator.py        # Координатор
-├── scanner.py             # Сканер файлов
-├── semantic.py            # Семантический анализ
-├── gateway.py             # Универсальный шлюз
-├── client.py              # MCP клиент
 ├── server_may.py          # MCP сервер
-├── tools.py               # Инструменты
-├── transport.py           # Транспорт
-├── pipeline_manager.py    # Менеджер пайплайнов
-├── inventory.py           # Инвентарь (SQLite)
-├── embeddings.py          # Эмбеддинги
+├── client.py              # MCP клиент
+├── tools.py               # Общие инструменты
+├── transport.py           # Транспортный слой
 ├── config.yaml            # Конфигурация
+├── requirements.txt       # Зависимости Python
 ├── LICENSE                # Лицензия
-└── README.md              # Этот файл
+├── README.md              # Этот файл
+│
+├── data/
+│   └── chroma_db/         # ChromaDB хранилище векторов
+│
+└── specialists/           # Агенты системы
+    ├── orchestrator.py    # Координатор агентов
+    ├── librarian.py       # Управление знаниями и индексация
+    ├── semantic.py        # Семантическая обработка
+    ├── scanner.py         # Сканирование файлов (Recon)
+    ├── gateway.py         # Шлюз к LLM провайдерам
+    ├── inventory.py       # SQLite инвентарь ресурсов
+    ├── embeddings.py      # Генерация эмбеддингов
+    ├── navigator.py       # Навигация по коду
+    ├── technologist.py    # Анализ технологического стека
+    └── reporter.py        # Генерация отчётов
 ```
 
 ---
