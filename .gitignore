@@ -1,4 +1,41 @@
-```gitignore
+# Python
 __pycache__/
-*.pyc
-```
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual env
+.venv/
+venv/
+
+# uv
+uv.lock
+
+# Data (generated)
+.vault_internal/
+data/
+data/chroma_db/
+data/vault_internal/
+*.sqlite
+*.sqlite3
+*.db
+data/may.log
+
+# Environment
+.env
+
+# IDE
+.vscode/*.json
+!.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
