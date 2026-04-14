@@ -191,7 +191,7 @@ def register_tools(mcp):
         """#S_EN: [TOOL] Прием умного чанка от внешнего Специалиста."""
         return lib.ingest_chunk(content, metadata)
 
-     @mcp.tool()
+    @mcp.tool()
     async def sync_project_folder(folder_path: str) -> str:
         """#S_EN: [TOOL] Запускает инкрементальную синхронизацию папки."""
         
