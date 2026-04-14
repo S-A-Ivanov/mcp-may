@@ -5,11 +5,27 @@ import requests
 import asyncio
 import logging
 from pathlib import Path
+from typing import Dict, Any, Optional, List
+
 
 class UniversalGateway:
-    """#S_EN: [GATEWAY] Универсальный роутер запросов с тотальным логированием."""
+    """#S_EN: [GATEWAY] Универсальный роутер запросов с тотальным логированием.
     
-    def __init__(self, config_path="config.yaml"):
+    Attributes:
+        cfg: Конфигурация из config.yaml.
+        raw_dir: Директория для логов обмена.
+        logger: Логгер модуля.
+    """
+    
+    def __init__(self, config_path: str = "config.yaml") -> None:
+        """Инициализация шлюза.
+        
+        Args:
+            config_path: Путь к файлу конфигурации относительно корня проекта.
+            
+        Raises:
+            FileNotFoundError: Если файл конфигурации не найден.
+        """
         # 📂 Принудительно ищем конфиг в корне проекта (на уровень выше от специалиста)
         base_dir = Path(__file__).parent.parent.resolve()
         full_config_path = base_dir / config_path
@@ -18,16 +34,23 @@ class UniversalGateway:
             raise FileNotFoundError(f"❌ Критическая ошибка: Не нашел {full_config_path}")
             
         with open(full_config_path, 'r', encoding='utf-8') as f:
-            self.cfg = yaml.safe_load(f)
+            self.cfg: Dict[str, Any] = yaml.safe_load(f)
         
         # Настройка путей из конфига тоже через абсолютный путь
         self.raw_dir = base_dir / self.cfg['storage'].get('vault_dir', './.vault_internal') / "raw_exchange"
         self.raw_dir.mkdir(parents=True, exist_ok=True)
         self.logger = logging.getLogger("mcp_may.gateway")
 
+    def _call_ollama_embeddings(self, model: str, text: str) -> List[float]:
+        """#S_EN: [INTERNAL] Низкоуровневый запрос векторов.
         
-    def _call_ollama_embeddings(self, model, text):
-        """#S_EN: [INTERNAL] Низкоуровневый запрос векторов."""
+        Args:
+            model: Название модели для эмбеддингов.
+            text: Текст для векторизации.
+            
+        Returns:
+            Вектор эмбеддинга.
+        """
         url = f"{self.cfg['providers']['ollama']['base_url']}/api/embeddings"
         payload = {"model": model, "prompt": text}
         
@@ -36,9 +59,20 @@ class UniversalGateway:
         
         return r.json().get("embedding", [0.0] * 1024)
 
-
-    def ask(self, specialist: str, prompt: str, schema: str = "text") -> dict:
-        """#S_EN: [PROCESS] Главный метод запроса."""
+    def ask(self, specialist: str, prompt: str, schema: str = "text") -> Dict[str, Any]:
+        """#S_EN: [PROCESS] Главный метод запроса.
+        
+        Args:
+            specialist: Имя специалиста из конфигурации.
+            prompt: Промпт для LLM.
+            schema: Формат ответа ('text' или 'json').
+            
+        Returns:
+            Ответ от LLM или словарь с ошибкой.
+            
+        Raises:
+            ValueError: Если специалист не настроен в конфигурации.
+        """
         route = self.cfg['routing'].get(specialist)
         if not route:
             raise ValueError(f"Specialist '{specialist}' not configured in config.yaml!")
@@ -73,7 +107,18 @@ class UniversalGateway:
             self.logger.error(f"🚨 Gateway Error [{specialist}]: {e}")
             return {"error": str(e), "updated_journal": "Error in LLM call", "chunks": []}
 
-    def _call_ollama(self, model, prompt, schema, timeout):
+    def _call_ollama(self, model: str, prompt: str, schema: str, timeout: int) -> Dict[str, Any]:
+        """Вызов Ollama API.
+        
+        Args:
+            model: Модель для генерации.
+            prompt: Промпт.
+            schema: Формат ответа.
+            timeout: Таймаут запроса.
+            
+        Returns:
+            Ответ от модели.
+        """
         url = f"{self.cfg['providers']['ollama']['base_url']}/api/generate"
         payload = {"model": model, "prompt": prompt, "stream": False}
         if schema == "json":
@@ -87,13 +132,31 @@ class UniversalGateway:
             return json.loads(raw_txt)
         return {"response": raw_txt}
 
-    def _call_openai(self, model, prompt, schema, timeout):
+    def _call_openai(self, model: str, prompt: str, schema: str, timeout: int) -> Dict[str, Any]:
+        """Заглушка для OpenAI.
+        
+        Args:
+            model: Модель.
+            prompt: Промпт.
+            schema: Формат.
+            timeout: Таймаут.
+            
+        Returns:
+            Заглушка ответа.
+        """
         # Реализуем по запросу, пока заглушка
         return {"response": "OpenAI Not Configured Yet"}
-    
 
-    def get_from_hf(self, repo_id: str, filename: str):
-        """#S_EN: [HF_HUB] Загрузка моделей или весов через шлюз."""
+    def get_from_hf(self, repo_id: str, filename: str) -> str:
+        """#S_EN: [HF_HUB] Загрузка моделей или весов через шлюз.
+        
+        Args:
+            repo_id: ID репозитория на HuggingFace.
+            filename: Имя файла для загрузки.
+            
+        Returns:
+            Путь к загруженному файлу.
+        """
         from huggingface_hub import hf_hub_download
         
         token = self.cfg['providers']['hf_hub'].get('token')
@@ -113,7 +176,16 @@ class UniversalGateway:
             cache_dir=cache
         )
     
-    def get_embeddings(self, text: str, model: str = None) -> list:
+    def get_embeddings(self, text: str, model: Optional[str] = None) -> List[float]:
+        """Получение эмбеддингов для текста.
+        
+        Args:
+            text: Текст для векторизации.
+            model: Модель для эмбеддингов (опционально).
+            
+        Returns:
+            Вектор эмбеддинга или нулевой вектор при ошибке.
+        """
         # Берем настройки из секции 'embeddings' в config.yaml
         cfg = self.cfg['routing'].get('embeddings', {})
         provider = cfg.get('provider', 'ollama')
@@ -130,11 +202,25 @@ class UniversalGateway:
             self.logger.error(f"🚨 Embedding Error: {e}")
             return [0.0] * 1024
 
-    async def ask_via_resource(self, resource: str, prompt: str, schema: str = "text") -> dict:
-        """#S_EN: [GATEWAY] Роутинг запроса на конкретный порт или провайдера [CHUNKING]."""
-        import requests
-        import json
+    async def ask_via_resource(
+        self, 
+        resource: str, 
+        prompt: str, 
+        schema: str = "text"
+    ) -> Dict[str, Any]:
+        """#S_EN: [GATEWAY] Роутинг запроса на конкретный порт или провайдера.
         
+        Args:
+            resource: Имя ресурса из конфигурации.
+            prompt: Промпт для генерации.
+            schema: Формат ответа.
+            
+        Returns:
+            Ответ от ресурса.
+            
+        Raises:
+            ValueError: Если ресурс не найден в конфигурации.
+        """
         res_cfg = self.cfg.get('compute_resources', {}).get(resource)
         if not res_cfg:
             raise ValueError(f"Resource {resource} not found in config.yaml!")
@@ -154,7 +240,7 @@ class UniversalGateway:
             # Выполняем синхронный запрос в пуле потоков, чтобы не вешать асинхронность
             loop = asyncio.get_running_loop()
             
-            def _call():
+            def _call() -> requests.Response:
                 return requests.post(url, json=payload, timeout=120)
                 
             r = await loop.run_in_executor(None, _call)
@@ -169,4 +255,6 @@ class UniversalGateway:
         elif provider == "openrouter":
             # (Здесь будет твой код для облака при необходимости)
             return {"response": "CLOUD_STUB: OpenRouter call not implemented yet."}
+        
+        raise ValueError(f"Unknown provider: {provider}")
 
