@@ -1,10 +1,9 @@
-import json
 import logging
+from core.base import BaseAsyncSpecialist
 
-logger = logging.getLogger("mcp_may.navigator")
-
-class Navigator:
+class Navigator(BaseAsyncSpecialist):
     def __init__(self, gateway, orchestrator):
+        super().__init__(name="navigator")
         self.gateway = gateway
         self.orchestrator = orchestrator
 
@@ -50,5 +49,5 @@ class Navigator:
             return [boss_query] # Фолбэк
             
         except Exception as e:
-            logger.error(f"Ошибка Штурмана при построении стратегии: {e}")
+            self.logger.error(f"Ошибка Штурмана при построении стратегии: {e}")
             return [boss_query]

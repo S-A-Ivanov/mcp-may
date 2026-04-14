@@ -31,6 +31,14 @@ orchestrator = ComputeOrchestrator(gateway=gateway)
 loop = get_event_loop()
 loop.create_task(orchestrator.start_dispatcher())
 
+# 3. МЕНЕДЖЕР СЕССИЙ И ФАЙЛОВ (для уменьшения дублирования кода)
+from specialists.session import get_session_manager, SessionManager, FileManager
+session_manager = get_session_manager()
+file_manager = FileManager()
+
+# Запускаем фоновую очистку сессий
+loop.create_task(session_manager.start_cleanup_task())
+
 
 # Настройка логирования
 def setup_logging(level: str = "INFO") -> None:
@@ -138,6 +146,19 @@ def register_tools(mcp) -> None:
             Статус запуска процесса сканирования.
         """
         return await lib.scan_dir(directory, max_files)
+
+    @mcp.tool()
+    async def get_session_stats() -> str:
+        """#S_EN: [SESSION] Получение статистики по активным сессиям.
+        
+        Returns:
+            Строка со статистикой сессий.
+        """
+        stats = session_manager.get_session_stats()
+        report = f"⟦⚓⟧ АКТИВНЫЕ СЕССИИ: {stats['active_sessions']}\\n"
+        for sid, info in stats['sessions'].items():
+            report += f"- {sid[:8]}... | {info['root_path']} | Файлов в кэше: {info['cached_files']}\\n"
+        return report
 
     @mcp.tool()
     async def ingest_chunk(content: str, metadata: dict) -> str:

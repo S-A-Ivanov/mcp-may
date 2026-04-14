@@ -1,23 +1,50 @@
 import asyncio
-import logging
 from pathlib import Path
 import uuid
 import yaml
+from typing import Any, Dict, Optional
+from core.base import BaseSpecialist
+from core.filesystem import fs_utils
 
 
-class Librarian:
+class Librarian(BaseSpecialist):
     """#S_EN: [LIBRARIAN] Хранитель архива v1.0.
 
     Отвечает за физический поиск, запись в базу по планам и инвентарь [CHUNKING].
+    Использует fs_utils из core для работы с файлами.
+    
+    Наследуется от BaseSpecialist для:
+    - Единого логирования
+    - Доступа к конфигурации через gateway
+    - Стандартизированной инициализации
     """
 
-    def __init__(self, collection, inventory, gateway, director, orchestrator):
+    def __init__(
+        self, 
+        collection: Any, 
+        inventory: Any, 
+        gateway: Any, 
+        director: Any, 
+        orchestrator: Any
+    ):
+        """Инициализация Библиотекаря.
+        
+        Args:
+            collection: ChromaDB коллекция для хранения атомов.
+            inventory: Менеджер инвентаря файлов.
+            gateway: Шлюз для доступа к LLM и конфигурации.
+            director: Семантический директор для анализа.
+            orchestrator: Оркестратор для фоновых задач.
+        """
+        super().__init__(name="librarian", gateway=gateway)
+        
         self.collection = collection
         self.inv = inventory
-        self.gateway = gateway
         self.director = director
-        self.orchestrator = orchestrator  
-        self.logger = logging.getLogger("mcp_may.librarian")
+        self.orchestrator = orchestrator
+        
+        # fs_utils - глобальный экземпляр из core.filesystem
+        # Не требует создания нового экземпляра
 
     def save_atom_to_db(
         self, rel_path: str, chunk_content: str, atom_data: dict
@@ -63,8 +90,9 @@ class Librarian:
 
         # Если плана нет — берем весь файл как один чанк, чтобы не падать
         if not plan_file.exists():
-            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                lines = f.readlines()
+            lines = fs_utils.read_lines(filepath)
+            if lines is None:
+                lines = []
             proposed_chunks = [
                 {
                     "label": "Full file (No Plan)",
@@ -73,12 +101,12 @@ class Librarian:
                 }
             ]
         else:
-            with open(plan_file, "r", encoding="utf-8") as f:
-                plan_data = yaml.safe_load(f)
-                proposed_chunks = plan_data.get("proposed_chunks", [])
+            plan_data = fs_utils.load_yaml(plan_file)
+            proposed_chunks = plan_data.get("proposed_chunks", []) if plan_data else []
 
-            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-                lines = f.readlines()
+            lines = fs_utils.read_lines(filepath)
+            if lines is None:
+                lines = []
 
         docs, metas, ids = [], [], []
         self.collection.delete(where={"file_path": rel_path})
@@ -128,20 +156,18 @@ class Librarian:
     def save_file_passport(self, file_path: str, passport_data: dict):
         """#S_EN: [CHRONICLE] Физическое сохранение паспорта в YAML."""
         vault_base = Path(
-            self.gateway.cfg["storage"].get("vault_dir", "./.vault_internal")
+            self.cfg["storage"].get("vault_dir", "./.vault_internal")
         )
         pass_dir = vault_base / "passports"
-        pass_dir.mkdir(parents=True, exist_ok=True)
-
+        
+        # Используем fs_utils для создания директории и сохранения YAML
+        fs_utils.ensure_directory(pass_dir)
+        
         file_id = str(file_path).replace("/", "_").replace(".", "_")
         f_path = pass_dir / f"{file_id}_passport.yaml"
 
-        try:
-            with open(f_path, "w", encoding="utf-8") as f:
-                yaml.dump(passport_data, f, allow_unicode=True, sort_keys=False)
-            self.logger.info(f"  📝 Паспорт выдан: {f_path.name}")
-        except Exception as e:
-            self.logger.error(f"❌ Ошибка записи паспорта {file_id}: {e}")
+        if not fs_utils.save_yaml(f_path, passport_data):
+            self.logger.error(f"❌ Ошибка записи паспорта {file_id}")
 
     async def scan_dir(self, directory: str, max_files: int = 50) -> str:
         """#S_EN: [TOOL_LOGIC] Точка входа для запуска Конвейера v1.0."""
@@ -156,6 +182,13 @@ class Librarian:
 
         return f"⟦⚓⟧ Мэй: Конвейер запущен (Разведка -> Паспорта -> Атомы)."
 
+    def process(self, *args, **kwargs) -> Any:
+        """#S_EN: [PROCESS] Основной метод обработки (требуется BaseSpecialist).
+        
+        Для Librarian это метод scan_dir, который запускает конвейер.
+        """
+        return self.scan_dir(*args, **kwargs)
+    
     def get_stats(self) -> str:
         """#S_EN: [STATS] Статистика по Теневому Индексу."""
         count = self.collection.count()
@@ -172,18 +205,8 @@ class Librarian:
     async def run_pipeline(self, root_path: Path, max_files: int):
         """#S_EN: [PIPELINE] Координация фаз."""
         try:
-            from specialists.scanner import scan_directory
-            files_data, _, _ = scan_directory(str(root_path), max_files)
-
-            # # --- ФАЗА 1: РАЗВЕДКА ---
-            # for f_info in files_data:
-            #     path = root_path / f_info['path']
-            #     with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-            #         content = f.read()
-                
-            #     passport = self.director.analyze_architecture(content, f_info['path'])
-            #     self.save_file_passport(f_info['path'], passport)
-            #     await asyncio.sleep(0.1)
+            # Используем fs_utils для сканирования директории
+            files_data, _, _ = fs_utils.scan_directory(str(root_path), max_files)
 
             # --- ФАЗА 1: РАЗВЕДКА ---
             self.logger.info("🔍 [PIPELINE] Фаза 1: Сбор паспортов файлов...")
@@ -199,52 +222,59 @@ class Librarian:
                 
                 self.logger.info(f"⚡ [PIPELINE] Обнаружены изменения в: {rel_path}")
                 
-                with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
+                # Используем fs_utils для чтения файла
+                content = fs_utils.get_file_content(full_path)
+                if content is None:
+                    self.logger.warning(f"⚠️ Не удалось прочитать {rel_path}, пропускаем")
+                    continue
                 
                 # Запуск генерации паспорта
                 passport = self.director.analyze_architecture(content, rel_path)
                 self.save_file_passport(rel_path, passport)
                 
                 await asyncio.sleep(0.1)
+                
             # --- ФАЗА 1.5: МАНИФЕСТ --- 
             self.logger.info("🌍 [PIPELINE] Фаза 1.5: Сборка Глобального Манифеста...")            
             self._compile_global_manifest()
 
             # Читаем только что созданный манифест для передачи в Фазу 2            
-            manifest_path = Path(self.gateway.cfg['storage'].get('vault_dir', './.vault_internal')) / "GLOBAL_MANIFEST.yaml"
+            manifest_path = Path(self.cfg['storage'].get('vault_dir', './.vault_internal')) / "GLOBAL_MANIFEST.yaml"
             global_manifest_content = ""
             if manifest_path.exists():
-                with open(manifest_path, 'r', encoding='utf-8') as f:
-                    # Читаем как текст или YAML
-                    import yaml
-                    m_data = yaml.safe_load(f)
+                m_data = fs_utils.load_yaml(manifest_path)
+                if m_data:
                     global_manifest_content = m_data.get('architecture_summary', '')
 
             # --- ФАЗА 2: ПЛАНИРОВАНИЕ (Генерация планов нарезки) ---
             self.logger.info("✂️ [PIPELINE] Фаза 2: Планирование нарезки чанков...")
-            plans_dir = Path(self.gateway.cfg['storage'].get('vault_dir', './.vault_internal')) / "plans"
-            plans_dir.mkdir(parents=True, exist_ok=True)
+            plans_dir = Path(self.cfg['storage'].get('vault_dir', './.vault_internal')) / "plans"
+            
+            # Используем fs_utils для создания директории
+            fs_utils.ensure_directory(plans_dir)
 
             for f_info in files_data:
                 path = root_path / f_info['path']
-                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
+                # Используем fs_utils для чтения файла
+                content = fs_utils.get_file_content(path)
+                if content is None:
+                    self.logger.warning(f"⚠️ Не удалось прочитать {f_info['path']} для планирования")
+                    continue
                 
-                # Вызываем ВАШ метод plan_chunks и передаем туда Манифест!
+                # Вызываем метод plan_chunks и передаем туда Манифест!
                 plan_result = self.director.plan_chunks(content, f_info['path'], global_manifest_content)
                 
-                # Сохраняем сгенерированный план в папку plans/
+                # Сохраняем сгенерированный план в папку plans/ через fs_utils
                 file_id = str(f_info['path']).replace("/", "_").replace(".", "_")
-                with open(plans_dir / f"{file_id}_plan.yaml", "w", encoding="utf-8") as f:
-                    yaml.dump(plan_result, f, allow_unicode=True, sort_keys=False)
+                plan_path = plans_dir / f"{file_id}_plan.yaml"
+                fs_utils.save_yaml(plan_path, plan_result)
                     
                 await asyncio.sleep(0.1)
             
              # --- ФАЗА 3: НАВЕДЕНИЕ ПОРЯДКА (НАРЕЗКА И ВЕКТОРИЗАЦИЯ) ---
             self.logger.info("💾 [PIPELINE] Фаза 3: Нарезка и запись в Теневой Индекс...")
             for f_info in files_data:
-                # Ваш метод ingest_by_plan сам прочитает созданный в Фазе 2 YAML-план!
+                # Метод ingest_by_plan сам прочитает созданный в Фазе 2 YAML-план!
                 self.ingest_by_plan(root_path / f_info['path'], root_path)
                 await asyncio.sleep(0.1)
             
@@ -257,10 +287,9 @@ class Librarian:
 
     def _compile_global_manifest(self):
         """#S_EN: [LAYER_0.5] Сшивка всех паспортов в единый Манифест."""
-        import yaml
         import time
         
-        cfg = self.gateway.cfg
+        cfg = self.cfg
         vault_base = Path(cfg.get('storage', {}).get('vault_dir', './.vault_internal'))
         pass_dir = vault_base / "passports"
         manifest_path = vault_base / "GLOBAL_MANIFEST.yaml"
@@ -274,29 +303,24 @@ class Librarian:
 
         all_passports_summary = ""
         for pass_file in passport_files:
-            try:
-                with open(pass_file, 'r', encoding='utf-8') as f:
-                    data = yaml.safe_load(f)
-                    all_passports_summary += f"--- FILE: {pass_file.name} ---\n"
-                    # Читаем поля, которые генерирует ваша Фаза 1
-                    all_passports_summary += f"PURPOSE: {data.get('file_purpose', 'N/A')}\n"
-                    all_passports_summary += f"VERDICT: {data.get('architectural_verdict', 'N/A')}\n\n"
-            except Exception as e:
-                self.logger.warning(f"⚠️ Не смог прочитать {pass_file.name}: {e}")
+            # Используем fs_utils для загрузки YAML
+            data = fs_utils.load_yaml(pass_file)
+            if data:
+                all_passports_summary += f"--- FILE: {pass_file.name} ---\n"
+                # Читаем поля, которые генерирует ваша Фаза 1
+                all_passports_summary += f"PURPOSE: {data.get('file_purpose', 'N/A')}\n"
+                all_passports_summary += f"VERDICT: {data.get('architectural_verdict', 'N/A')}\n\n"
 
         # Вызываем метод Семантического Директора
         manifest_text = self.director.generate_global_manifest(all_passports_summary)
 
-        # Физическая запись YAML
-        try:
-            manifest_data = {
-                "project_name": cfg.get('project', {}).get('name', "NeuralVault"),
-                "architecture_summary": manifest_text,
-                "processed_files": [p.name for p in passport_files],
-                "last_updated": time.ctime()
-            }
-            with open(manifest_path, "w", encoding="utf-8") as f:
-                yaml.dump(manifest_data, f, allow_unicode=True, sort_keys=False)
-            self.logger.info(f"✅ [MANIFEST] Успешно создан: {manifest_path}")
-        except Exception as e:
-            self.logger.error(f"❌ Ошибка записи GLOBAL_MANIFEST.yaml: {e}")
+        # Физическая запись YAML через fs_utils
+        manifest_data = {
+            "project_name": cfg.get('project', {}).get('name', "NeuralVault"),
+            "architecture_summary": manifest_text,
+            "processed_files": [p.name for p in passport_files],
+            "last_updated": time.ctime()
+        }
+        
+        if not fs_utils.save_yaml(manifest_path, manifest_data):
+            self.logger.error(f"❌ Ошибка записи GLOBAL_MANIFEST.yaml")
