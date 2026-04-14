@@ -1,10 +1,6 @@
 mcp
 fastmcp
 chromadb
-watchdog
-tree-sitter
-python-dotenv
 uvicorn
 starlette
-psutil
-aiohttp
+pyyaml

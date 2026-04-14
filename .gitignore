@@ -1,41 +1,57 @@
-# Python
+```
+# Dependencies
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.egg-info/
-dist/
-build/
-.eggs/
-
-# Virtual env
-.venv/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
 venv/
-
-# uv
-uv.lock
-
-# Data (generated)
-.vault_internal/
-data/
-data/chroma_db/
-data/vault_internal/
-*.sqlite
-*.sqlite3
-*.db
-data/may.log
-
-# Environment
+.venv/
 .env
+.env.local
+.env.*
+.env~*
+requirements.txt.bak
+*.egg-info/
+.eggs/
+.mypy_cache/
+.pytest_cache/
+.coverage
+coverage/
+htmlcov/
 
-# IDE
-.vscode/*.json
-!.vscode/settings.json
+# Build artifacts
+build/
+dist/
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.o
+*.a
+*.obj
+
+# Editors and IDEs
+.vscode/
 .idea/
-
-# OS
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
 
 # Logs
 *.log
+*.tmp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Icon?
+```
