@@ -1,4 +1,9 @@
-```gitignore
+
 __pycache__/
 *.pyc
-```
+
+data/
+venv/
+.venv/
+*.log
+.vault_internal
