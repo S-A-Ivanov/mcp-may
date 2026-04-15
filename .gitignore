@@ -2,6 +2,9 @@
 # Database files
 *.sqlite3
 *.db
+ data/
+ .vault_internal/
+
 
 # Python
 __pycache__/
