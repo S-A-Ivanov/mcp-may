@@ -23,21 +23,21 @@ def get_event_loop() -> asyncio.AbstractEventLoop:
 from specialists.gateway import UniversalGateway
 gateway = UniversalGateway()
 
-# 2. ДИРИЖЕР ВЫЧИСЛЕНИЙ
-from specialists.orchestrator import ComputeOrchestrator
-orchestrator = ComputeOrchestrator(gateway=gateway)
-
-# 🔥 Запускаем диспетчер в фоне после получения event loop
-loop = get_event_loop()
-loop.create_task(orchestrator.start_dispatcher())
-
 # 3. МЕНЕДЖЕР СЕССИЙ И ФАЙЛОВ (для уменьшения дублирования кода)
 from specialists.session import get_session_manager, SessionManager, FileManager
 session_manager = get_session_manager()
 file_manager = FileManager()
 
-# Запускаем фоновую очистку сессий
+# 🔥 Запускаем event loop и фоновую очистку сессий
+loop = get_event_loop()
 loop.create_task(session_manager.start_cleanup_task())
+
+# 2. ДИРИЖЕР ВЫЧИСЛЕНИЙ (нужен session_manager для обработки задач)
+from specialists.orchestrator import ComputeOrchestrator
+orchestrator = ComputeOrchestrator(gateway=gateway, session_manager=session_manager)
+
+# 🔥 Запускаем диспетчер в фоне
+loop.create_task(orchestrator.start_dispatcher())
 
 
 # Настройка логирования
@@ -99,7 +99,12 @@ def register_tools(mcp) -> None:
         Returns:
             Результат операции записи.
         """
-        return lib.add_manual_fact(text, status)
+        return await orchestrator.add_task(
+            task_type="add_evidence",
+            priority=3,
+            prompt=text,
+            schema="text"
+        )
  
     @mcp.tool()
     async def get_verified_brief(query: str, include_gossip: bool = False) -> str:
@@ -112,9 +117,12 @@ def register_tools(mcp) -> None:
         Returns:
             Сформированный отчет по запросу.
         """
-        # Мы просто просим референта сделать всю работу!
-        # Передаем объект библиотекаря (lib), который вы инициализировали в tools.py
-        return await reporter.create_verified_brief(lib, query, include_gossip)
+        return await orchestrator.add_task(
+            task_type="coordinated_brief",
+            priority=1,
+            prompt=query,
+            schema="text"
+        )
 
     @mcp.tool()
     async def get_db_stats() -> str:
@@ -123,7 +131,12 @@ def register_tools(mcp) -> None:
         Returns:
             Строка со статистикой по базе знаний.
         """
-        return lib.get_stats()
+        return await orchestrator.add_task(
+            task_type="get_db_stats",
+            priority=3,
+            prompt="",
+            schema="text"
+        )
     
     @mcp.tool()
     async def clear_collection() -> str:
@@ -132,7 +145,12 @@ def register_tools(mcp) -> None:
         Returns:
             Результат операции очистки.
         """
-        return lib.reset_vault()
+        return await orchestrator.add_task(
+            task_type="clear_collection",
+            priority=3,
+            prompt="",
+            schema="text"
+        )
     
     @mcp.tool()
     async def scan_directory_tool(directory: str, max_files: int = 50) -> str:
@@ -145,7 +163,12 @@ def register_tools(mcp) -> None:
         Returns:
             Статус запуска процесса сканирования.
         """
-        return await lib.scan_dir(directory, max_files)
+        return await orchestrator.add_task(
+            task_type="deep_index",
+            priority=2,
+            prompt=f"Scan directory: {directory}, max_files: {max_files}",
+            schema="text"
+        )
 
     @mcp.tool()
     async def get_session_stats() -> str:
@@ -154,11 +177,12 @@ def register_tools(mcp) -> None:
         Returns:
             Строка со статистикой сессий.
         """
-        stats = session_manager.get_session_stats()
-        report = f"⟦⚓⟧ АКТИВНЫЕ СЕССИИ: {stats['active_sessions']}\\n"
-        for sid, info in stats['sessions'].items():
-            report += f"- {sid[:8]}... | {info['root_path']} | Файлов в кэше: {info['cached_files']}\\n"
-        return report
+        return await orchestrator.add_task(
+            task_type="get_session_stats",
+            priority=3,
+            prompt="",
+            schema="text"
+        )
 
     @mcp.tool()
     async def ingest_chunk(content: str, metadata: dict) -> str:
@@ -171,6 +195,11 @@ def register_tools(mcp) -> None:
         Returns:
             Результат операции индексации.
         """
-        return lib.ingest_chunk(content, metadata)
+        return await orchestrator.add_task(
+            task_type="ingest_chunk",
+            priority=3,
+            prompt=f"Content: {content}, Metadata: {metadata}",
+            schema="text"
+        )
 
   
