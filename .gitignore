@@ -1,4 +1,7 @@
-```
+
+data/
+.vault_internal/
+
 # Python
 __pycache__/
 *.pyc
@@ -33,4 +36,3 @@ coverage/
 # Testing
 .pytest_cache/
 .mypy_cache/
-```
