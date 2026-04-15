@@ -1,82 +1,36 @@
 ```
-# Database files
-*.sqlite3
-*.db
-data/
-.vault_internal/
-
-
 # Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-env/
-venv/
+
+# Dependencies
 .venv/
-.ENV
+venv/
 .env
 .env.local
 .env.*
-.venv/
-venv/
-ENV/
-.envs/
 
-# Logs
+# Logs and temporary files
 *.log
-
-# Coverage
-.coverage
-coverage/
-htmlcov/
-.coverage.*
-
-# Temporary files
 *.tmp
-*.temp
-*~
-.DS_Store
-Thumbs.db
 
-# IDE
+# Editors
 .vscode/
 .idea/
-*.swp
-*.swo
 
 # Build artifacts
-build/
 dist/
-*.egg-info/
+build/
 target/
-.gradle/
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
-# Compressed files
-*.zip
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.gz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.tgz
-*.tar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
+# Coverage reports
+.coverage
+htmlcov/
+coverage/
+
+# Testing
+.pytest_cache/
+.mypy_cache/
 ```

@@ -19,6 +19,15 @@ class Technologist:
                 {"step": 1, "actor": "scanner", "action": "scan_dir", "output": "file_list"},
                 {"step": 2, "actor": "director", "action": "make_passport", "output": "passports"},
                 {"step": 3, "actor": "librarian", "action": "ingest_chunks", "output": "atoms"}
+            ],
+            "get_db_stats": [
+                {"step": 1, "actor": "librarian", "action": "get_stats", "output": "stats"}
+            ],
+            "clear_collection": [
+                {"step": 1, "actor": "librarian", "action": "reset_vault", "output": "result"}
+            ],
+            "get_session_stats": [
+                {"step": 1, "actor": "session_manager", "action": "get_stats", "output": "stats"}
             ]
         }
 

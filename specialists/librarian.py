@@ -201,6 +201,16 @@ class Librarian(BaseSpecialist):
                 report += f"- {doc[:100]}...\n"
         return report
 
+    def reset_vault(self) -> str:
+        """#S_EN: [RESET] Очистка коллекции базы данных."""
+        try:
+            count = self.collection.count()
+            self.collection.delete(where={})
+            return f"⟦⚓⟧ БАЗА ОЧИЩЕНА: Удалено {count} атомов."
+        except Exception as e:
+            self.logger.error(f"Ошибка при очистке базы: {e}")
+            return f"Ошибка при очистке базы: {str(e)}"
+
 
     async def run_pipeline(self, root_path: Path, max_files: int):
         """#S_EN: [PIPELINE] Координация фаз."""

@@ -20,11 +20,12 @@ class ComputeOrchestrator:
         locks: Блокировки ресурсов.
     """
     
-    def __init__(self, gateway) -> None:
+    def __init__(self, gateway, session_manager=None) -> None:
         """Инициализация оркестратора.
         
         Args:
             gateway: Экземпляр UniversalGateway для доступа к конфигурации и LLM.
+            session_manager: Менеджер сессий для обработки задач get_session_stats.
         """
         self.gateway = gateway
         # Берем конфиг прямо из шлюза
@@ -34,6 +35,7 @@ class ComputeOrchestrator:
         # 🚦 Единая приоритетная очередь
         self.queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
         self.running = True
+        self.session_manager = session_manager
         
         # Блокировщики ресурсов (чтобы задачи на одной карте не шли одновременно)
         self.locks: Dict[str, asyncio.Lock] = {
@@ -136,6 +138,20 @@ class ComputeOrchestrator:
                         
                     elif actor == "reporter" and action == "compile_final":
                         current_context = await self.reporter.compile_brief(query, current_context)
+                    
+                    # Синхронные методы для простых задач
+                    elif actor == "librarian" and action == "get_stats":
+                        current_context = self.lib.get_stats()
+                    
+                    elif actor == "librarian" and action == "reset_vault":
+                        current_context = self.lib.reset_vault()
+                    
+                    elif actor == "session_manager" and action == "get_stats":
+                        stats = self.session_manager.get_session_stats()
+                        report = f"⟦⚓⟧ АКТИВНЫЕ СЕССИИ: {stats['active_sessions']}\\n"
+                        for sid, info in stats['sessions'].items():
+                            report += f"- {sid[:8]}... | {info['root_path']} | Файлов в кэше: {info['cached_files']}\\n"
+                        current_context = report
 
                 # Завершаем задачу, отдаем результат
                 task_data["future"].set_result(current_context)
